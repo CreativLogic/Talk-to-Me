@@ -12,6 +12,7 @@ import {createBlob, decode, decodeAudioData} from './utils';
 import './visual-3d';
 
 const VOICES = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir'];
+const LOCAL_STORAGE_KEY = 'gemini-live-audio-session';
 
 @customElement('gdm-live-audio')
 export class GdmLiveAudio extends LitElement {
@@ -179,6 +180,7 @@ export class GdmLiveAudio extends LitElement {
 
   constructor() {
     super();
+    this.loadSessionOnStartup();
     this.initClient();
   }
 
@@ -379,21 +381,26 @@ export class GdmLiveAudio extends LitElement {
     }
   }
 
-  private reset() {
+  private reinitSession() {
     this.stopRecording();
     if (this.sessionPromise) {
       this.sessionPromise.then((session) => session.close());
     }
-    this.transcriptHistory = [];
     this.currentInputTranscription = '';
     this.currentOutputTranscription = '';
     this.initSession();
+  }
+
+  private reset() {
+    this.transcriptHistory = [];
+    this.reinitSession();
     this.updateStatus('Session cleared.');
   }
 
   private handleVoiceChange(e: Event) {
     this.selectedVoice = (e.target as HTMLSelectElement).value;
-    this.reset();
+    this.reinitSession();
+    this.updateStatus(`Voice changed to ${this.selectedVoice}.`);
   }
 
   private exportTranscript() {
@@ -416,6 +423,55 @@ export class GdmLiveAudio extends LitElement {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  private saveSession() {
+    if (this.transcriptHistory.length === 0) {
+      this.updateStatus('Nothing to save.');
+      return;
+    }
+    const sessionData = {
+      transcriptHistory: this.transcriptHistory,
+      selectedVoice: this.selectedVoice,
+    };
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sessionData));
+      this.updateStatus('Session saved successfully!');
+    } catch (error) {
+      this.updateError(`Could not save session: ${error.message}`);
+    }
+  }
+
+  private loadSession() {
+    try {
+      const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (savedData) {
+        const sessionData = JSON.parse(savedData);
+        this.transcriptHistory = sessionData.transcriptHistory || [];
+        this.selectedVoice = sessionData.selectedVoice || 'Zephyr';
+        this.reinitSession();
+        this.updateStatus('Session loaded successfully.');
+      } else {
+        this.updateStatus('No saved session found.');
+      }
+    } catch (error) {
+      this.updateError(`Could not load session: ${error.message}`);
+    }
+  }
+
+  private loadSessionOnStartup() {
+    try {
+      const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (savedData) {
+        const sessionData = JSON.parse(savedData);
+        this.transcriptHistory = sessionData.transcriptHistory || [];
+        this.selectedVoice = sessionData.selectedVoice || 'Zephyr';
+      }
+    } catch (error) {
+      console.error('Failed to load session on startup:', error);
+      this.transcriptHistory = [];
+      this.selectedVoice = 'Zephyr';
+    }
   }
 
   render() {
@@ -446,7 +502,9 @@ export class GdmLiveAudio extends LitElement {
             id="micButton"
             class=${classMap({recording: this.isRecording})}
             @click=${this.toggleRecording}
-            aria-label=${this.isRecording ? 'Stop recording' : 'Start recording'}
+            aria-label=${
+              this.isRecording ? 'Stop recording' : 'Start recording'
+            }
           >
             ${this.isRecording
               ? html`<svg
@@ -456,9 +514,7 @@ export class GdmLiveAudio extends LitElement {
                   width="24px"
                   fill="#ffffff"
                 >
-                  <path
-                    d="M480-400q-50 0-85-35t-35-85v-200q0-50 35-85t85-35q50 0 85 35t35 85v200q0 50-35 85t-85 35Zm0 80q83 0 141.5-58.5T680-520h-80q0 50-35 85t-85 35q-50 0-85-35t-35-85h-80q0 83 58.5 141.5T480-320ZM280-40v-123q-52-16-95.5-50T141-262H60v-80h81q13-75 58-134t101-99v-105h80v105q54 33 92.5 87.5T620-413l1 13h80v80h-81q-14 55-57.5 89T440-163v123H280Z"
-                  />
+                  <path d="M320-320v-320h320v320H320Z" />
                 </svg>`
               : html`<svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -468,7 +524,7 @@ export class GdmLiveAudio extends LitElement {
                   fill="#ffffff"
                 >
                   <path
-                    d="M480-400q-50 0-85-35t-35-85v-200q0-50 35-85t85-35q50 0 85 35t35 85v200q0 50-35 85t-85 35Zm-40-600v-105q0-17 11.5-28.5T480-940q17 0 28.5 11.5T520-900v105q54 33 92.5 87.5T651-620h89v80h-89q-13 75-58 134t-101 99v107h-80v-107q-83-33-141.5-99T80-540H0v-80h80q14-81 67-140.5T280-840v-60h80v60q46 17 80 44t56 56Zm40 460h80q0-83-58.5-141.5T480-320q-83 0-141.5 58.5T280-120h80q0-50 35-85t85-35q50 0 85 35t35 85Z"
+                    d="M480-400q-50 0-85-35t-35-85v-200q0-50 35-85t85-35q50 0 85 35t35 85v200q0 50-35 85t-85 35ZM280-80q-50-31-79-81t-29-105h80q0 50 29.5 90.5T341-121l-61 61Zm400 0-61-61q32-21 61.5-61.5T709-266h80q0 55-29 105t-79 81ZM440-800v-120h80v120h-80Zm40 680q83 0 141.5-58.5T680-320H280q0 83 58.5 141.5T480-120Z"
                   />
                 </svg>`}
           </button>
@@ -486,6 +542,40 @@ export class GdmLiveAudio extends LitElement {
             >
               <path
                 d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"
+              />
+            </svg>
+          </button>
+          <button
+            id="saveButton"
+            @click=${this.saveSession}
+            aria-label="Save Session"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="24px"
+              viewBox="0 -960 960 960"
+              width="24px"
+              fill="#ffffff"
+            >
+              <path
+                d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm200-200h160v-240H400v240Zm-80 80h320v-400H320v400Zm80-320Z"
+              />
+            </svg>
+          </button>
+          <button
+            id="loadButton"
+            @click=${this.loadSession}
+            aria-label="Load Session"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="24px"
+              viewBox="0 -960 960 960"
+              width="24px"
+              fill="#ffffff"
+            >
+              <path
+                d="M200-160q-33 0-56.5-23.5T120-240v-480q0-33 23.5-56.5T200-800h240l80 80h280q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H200Zm0-80h600v-400H440l-80-80H200v480Zm0 0v-480 480Z"
               />
             </svg>
           </button>

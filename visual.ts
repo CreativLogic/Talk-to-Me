@@ -101,7 +101,8 @@ export class GdmLiveAudioVisuals extends LitElement {
     requestAnimationFrame(() => this.visualize());
   }
 
-  private firstUpdated() {
+  // FIX: The `render` method must be `protected` to correctly override the `LitElement` base class method.
+  protected firstUpdated() {
     // FIX: Use this.shadowRoot instead of this.renderRoot to resolve the type error.
     this.canvas = this.shadowRoot!.querySelector('canvas')!;
     this.canvas.width = 400;
@@ -109,7 +110,8 @@ export class GdmLiveAudioVisuals extends LitElement {
     this.canvasCtx = this.canvas.getContext('2d')!;
   }
 
-  private render() {
+  // FIX: The `render` method must be `protected` to correctly override the `LitElement` base class method.
+  protected render() {
     return html`<canvas></canvas>`;
   }
 }
